@@ -1,0 +1,131 @@
+import streamlit as st
+import pandas as pd
+import datetime
+import os
+from zipfile import ZipFile
+
+# Extract uploaded zip files for AI Recipe Generator and Donation
+recipe_gen_path = r'C:\Users\druth\Downloads\AI_Recipe_Generator-main.zip'
+donation_path = r'C:\Users\druth\Downloads\IT632_4_Waste-food-management-and-donation-main.zip'
+recipe_data_path = r'C:\Users\druth\OneDrive\Desktop\SFOOD\recipe_data.csv'
+
+if os.path.exists(recipe_gen_path):
+    with ZipFile(recipe_gen_path, 'r') as zip_ref:
+        zip_ref.extractall('/mnt/data/ai_recipe_generator')
+else:
+    st.error(f"File {recipe_gen_path} not found. Please upload the AI Recipe Generator file.")
+
+if os.path.exists(donation_path):
+    with ZipFile(donation_path, 'r') as zip_ref:
+        zip_ref.extractall('/mnt/data/food_donation')
+else:
+    st.error(f"File {donation_path} not found. Please upload the Donation file.")
+
+# Load the recipe dataset
+if os.path.exists(recipe_data_path):
+    recipe_data = pd.read_csv(recipe_data_path)
+else:
+    st.error(f"File {recipe_data_path} not found. Please upload the recipe data file.")
+
+# Food Inventory Tracking
+def food_inventory():
+    st.header("Food Inventory Tracking")
+    st.write("Track and organize your pantry contents.")
+    inventory_file = "food_inventory.csv"
+
+    # Load or initialize the inventory
+    if os.path.exists(inventory_file):
+        inventory = pd.read_csv(inventory_file)
+    else:
+        inventory = pd.DataFrame(columns=["Item", "Quantity", "Expiry Date"])
+
+    # Add items to inventory
+    with st.form("Add Item"):
+        item = st.text_input("Food Item")
+        quantity = st.number_input("Quantity", min_value=1, value=1)
+        expiry_date = st.date_input("Expiry Date", min_value=datetime.date.today())
+        submitted = st.form_submit_button("Add")
+        if submitted:
+            new_entry = pd.DataFrame({"Item": [item], "Quantity": [quantity], "Expiry Date": [expiry_date]})
+            inventory = pd.concat([inventory, new_entry], ignore_index=True)
+            inventory.to_csv(inventory_file, index=False)
+            st.success(f"{item} added to inventory!")
+
+    # Display inventory
+    st.subheader("Current Inventory")
+    st.dataframe(inventory)
+
+# Expiry Date Monitoring & Alerts
+def expiry_monitoring():
+    st.header("Expiry Date Monitoring")
+    st.write("Keep track of items nearing their expiry date.")
+    inventory_file = "food_inventory.csv"
+    if os.path.exists(inventory_file):
+        inventory = pd.read_csv(inventory_file)
+        inventory["Expiry Date"] = pd.to_datetime(inventory["Expiry Date"])
+        today = datetime.date.today()
+        expired = inventory[inventory["Expiry Date"] < pd.Timestamp(today)]
+        nearing_expiry = inventory[(inventory["Expiry Date"] >= pd.Timestamp(today)) & \
+                                   (inventory["Expiry Date"] <= pd.Timestamp(today + datetime.timedelta(days=7)))]
+
+        st.subheader("Expired Items")
+        st.dataframe(expired) if not expired.empty else st.write("No expired items.")
+
+        st.subheader("Items Nearing Expiry")
+        st.dataframe(nearing_expiry) if not nearing_expiry.empty else st.write("No items nearing expiry.")
+    else:
+        st.warning("No inventory data found. Please add items to your inventory.")
+
+# AI Recipe Generator
+def ai_recipe_generator():
+    st.header("AI Recipe Generator")
+    st.write("Generate recipes based on available ingredients.")
+
+    if 'recipe_data' not in globals():
+        st.error("Recipe data not loaded. Please check the file upload.")
+        return
+
+    ingredients = st.multiselect("Select Ingredients", options=recipe_data["Ingredients"].unique())
+    if st.button("Generate Recipe"):
+        # Placeholder: Replace with AI logic from the extracted files
+        if ingredients:
+            matching_recipes = recipe_data[recipe_data["Ingredients"].isin(ingredients)]
+            if not matching_recipes.empty:
+                st.subheader("Generated Recipe")
+                recipe = matching_recipes.sample(1)
+                st.dataframe(recipe)  # Display as a table instead of using st.write
+            else:
+                st.warning("No recipes match the selected ingredients. Please try with different ingredients.")
+        else:
+            st.warning("Please select at least one ingredient.")
+
+
+# Food Donation
+def food_donation():
+    st.header("Food Donation")
+    st.write("Donate surplus food to those in need.")
+
+    ngos = ["NGO A", "NGO B", "NGO C"]  # Replace with data from donation files if required
+    selected_ngo = st.selectbox("Select NGO", ngos)
+    num_people = st.number_input("Number of People to Donate Food To", min_value=1, value=1)
+
+    if st.button("Donate Food"):
+        st.success(f"Thank you for donating food for {num_people} people to {selected_ngo}.")
+
+# Main App
+if __name__ == "__main__":
+    st.title("SFOOD - Smart Food Management")
+
+    st.sidebar.title("Navigation")
+    menu = ["Food Inventory", "Expiry Monitoring", "AI Recipe Generator", "Food Donation"]
+    choice = st.sidebar.radio("Go to", menu)
+
+    if choice == "Food Inventory":
+        food_inventory()
+    elif choice == "Expiry Monitoring":
+        expiry_monitoring()
+    elif choice == "AI Recipe Generator":
+        ai_recipe_generator()
+    elif choice == "Food Donation":
+        food_donation()
+
